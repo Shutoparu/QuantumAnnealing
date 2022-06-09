@@ -78,7 +78,8 @@ def DigitalAnnealing(b, Q, num_sweeps=1000, beta_range=(1, 50)):
             offset += offset_increasing_rate*np.min(delta_E)
         else:
             # b[np.random.choice(flip_list)] *= -1
-            b[np.random.choice(flip_list)] = b[np.random.choice(flip_list)] * -1 + 1
+            rId = np.random.choice(flip_list)
+            b[rId] = b[rId] * -1 + 1
             offset = 0
 
         e[i] = np.matmul(np.matmul(b.T, Q), b)
@@ -177,7 +178,7 @@ def DigitalAnnealing_numba(b, Q, num_sweeps=1000, beta_range=(1, 50), beta=None)
     # e_min = np.matmul(np.matmul(b.T, Q), b)
     return b
 
-def parse_Q(file="/Users/musk/Desktop/H_0_5500.pkl"):
+def parse_Q(file="./H_0_5500.pkl"):
 
     with open(file, "rb") as f:
         coe = pickle.load(f)

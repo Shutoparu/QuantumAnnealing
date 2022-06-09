@@ -1,9 +1,12 @@
 from pyqubo import Binary, Constraint, Placeholder, Array, OneHotEncInteger, LogEncInteger
 import neal
 from tqdm import tqdm
+import numpy as np
 
-weights = [1, 3, 7, 9]
-values = [10, 2, 3, 6]
+#weights = [1, 3, 7, 9]
+#values = [10, 2, 3, 6]
+weights = np.random.random(2000)
+values = np.random.random(2000)
 max_weight = 10
 
 # create the array of 0-1 binary variables
@@ -61,7 +64,7 @@ bqm.normalize()
 success = 0
 for i in tqdm(range(1000)):
     sampleset = sampler.sample(bqm, num_reads=1,
-                               num_sweeps=1000, beta_range=(1.0, 50.0), seed=i+1)
+                               num_sweeps=10000, beta_range=(1.0, 50.0), seed=i+1)
 
     dec_samples = model.decode_sampleset(sampleset, feed_dict=feed_dict)
 

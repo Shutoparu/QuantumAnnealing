@@ -6,7 +6,7 @@ import re
 import pickle
 from tqdm import tqdm
 
-from pymatreader import read_mat
+# from pymatreader import read_mat
 
 def sigmoid(arr, a=1, c=0):
     # input array dim: num_UE, num_BS
@@ -14,7 +14,6 @@ def sigmoid(arr, a=1, c=0):
     return 1 / (1 + np.exp(-a * (arr - c)))
 
 def pathloss_to_SINR(pathloss):
-    
     power = 27
     power_W = 10**(power/10) * 10**(-3)
     k = 1.3803 * 10**(-23)
@@ -23,10 +22,7 @@ def pathloss_to_SINR(pathloss):
     BBsr = 128.8 * 10**6   # Sampling rate
 
     # compute SNR/SINR
-    
-    num_UE = pathloss.shape[0]
-    num_BS = pathloss.shape[1]
-    num_MS = pathloss.shape[2]
+    num_UE, num_BS, num_MS = pathloss.shape # num_MS is number of measure time (time step number)
     
     SNR_dB = np.zeros((num_UE, num_BS, num_MS))
     SINR_dB = np.zeros((num_UE, num_BS, num_MS))
@@ -47,16 +43,12 @@ def pathloss_to_SINR(pathloss):
 def SINR_to_PRB(SINR_dB, SNR_dB):
 
     # SINR dim : (num_UE, num_BS, len_time)
-
     UE_demand = 1.5 * 10**6           # bit/sec * measurement time
-    num_UE = SINR_dB.shape[0]
-    num_Bs = SINR_dB.shape[1]
+    num_UE, num_Bs, _ = SINR_dB.shape
     num_PRB = 273
     RE_per_PRB = 72
     slot_time = 0.5 * 10**(-3)
-
     Capacity = np.log2(1+10**(SINR_dB/10))
-
     # Require PRB
     R_PRB = np.ceil((UE_demand * slot_time)/(RE_per_PRB * Capacity))
 
@@ -65,17 +57,27 @@ def SINR_to_PRB(SINR_dB, SNR_dB):
 
     return R_PRB/num_PRB, throughput
 
+def read_pkl(file="7BS_150UE_pathloss.pkl"):
+    with open(file, "rb") as f:
+        data = pickle.load(f)
+
+    # data = pkl['pathloss']
+    return data
+
 if __name__ == '__main__':
 
-    data = read_mat('./pathloss.mat')
-    print("1",data['pathloss'].shape)
-    pathloss = data['pathloss']
+    pathloss = read_pkl()
+    # data = read_mat('./pathloss.mat')
+    # print("1",data['pathloss'].shape)
+    # pathloss = data['pathloss']
+
     t_index = 5500
-    UE_bound = 20
+    UE_bound = 150
 
 
     SINR_dB, SNR_dB, RSRP_dBm = pathloss_to_SINR(pathloss)
     R_PRB, throughput = SINR_to_PRB(SINR_dB, SNR_dB)
+
     R_PRB = R_PRB[0:UE_bound,:,t_index]
     throughput = throughput[0:UE_bound,:,t_index]
     #RSRP = SNR_dB[0:UE_bound,:,t_index]
@@ -102,7 +104,6 @@ if __name__ == '__main__':
 
     H_0 = SubH(np.sum((np.sum(R_PRB * X, axis=0) - avg)**2)/num_BS, "H_0")
     H_1 = SubH(-1 * np.sum(sigmoid(RSRP, c=c_avg) * X)/num_UE, "H_1")
-    
     H_c = Constraint(np.sum((np.sum(X, axis=1)-1)**2), label='one_hot')
 
     # H = lmd0 * H_0 + lmd1 *  H_1 + lmdc * H_c
@@ -124,7 +125,7 @@ if __name__ == '__main__':
     bqm = model.to_bqm(feed_dict=feed_dict)
     for i in tqdm(range(100)):
         sampleset = sampler.sample(bqm, num_reads=1,
-                                num_sweeps=10000, beta_range=[1, 50])
+                                num_sweeps=1000000, beta_range=[1, 50])
     decoded_samples = model.decode_sampleset(sampleset, feed_dict=feed_dict)
     best_sample = min(decoded_samples, key=lambda x: x.energy)
 
@@ -135,6 +136,3 @@ if __name__ == '__main__':
     # print("H_1: ", best_sample.subh['H_1'])
     solution = best_sample.sample
     print(solution)
-    
-    
-    
