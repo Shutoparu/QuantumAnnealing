@@ -1,15 +1,24 @@
-from pyqubo import Binary, Placeholder, Constraint
-import neal
+from mlb import pathloss_to_SINR, SINR_to_PRB, read_pkl
+import cpu_kernel.digital_annealing as cpuda
+from toQUBO import QUBO
 
-x, y = Binary('x'), Binary('y')
-lmd = Placeholder('lmd')
+#### read raw data ####
+pathloss = read_pkl()
 
-H = x*x + 4.0*x*y + y*y + Constraint(lmd*(1-x), label='one_hot')
-model = H.compile()
-qubo, offset = model.to_bqm()
+#### conver raw data to QUBO parameters ####
+sinr, snr, rsrp = pathloss_to_SINR(pathloss)
+prb, throughput = SINR_to_PRB(sinr, snr)
 
-feed_dic = {'lmd':1}
-sampler = neal.SimulatedAnnealingSampler(feed_dict=feed_dic)
-sampleset = sampler.sample(qubo)
+#### mlb configuration ####
+ue_num, bs_num, time_step = sinr.shape
+t = 5500
+prb_t = prb[:, :, t]
+throughput_t = throughput[:, :, t]
+rsrp_t = rsrp[:, :, t]
 
-dec_samples = model.decode_sampleset(sampleset)
+#### toQUBO matrix ####
+q = QUBO.paras_to_qubo(rsrp_t, throughput_t, prb_t, ue_num, bs_num)
+
+#### cpu version of digital annealing algorithm ####
+b, e = cpuda.annealing(q)
+print(b)

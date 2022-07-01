@@ -204,7 +204,7 @@ def parse_Q(file="./H_0_5500.pkl"):
 
     return Q
 
-def use_sample(Q = None, num_sweeps=1000, multiThread=False):
+def annealing(Q = None, num_sweeps=1000, multiThread=False):
     if Q is None:
         binary_size = 40
         alpha = 0.01
@@ -225,9 +225,10 @@ def use_sample(Q = None, num_sweeps=1000, multiThread=False):
     print("time : {}".format(t1-t0))
     print("Minimum Energy : {}".format(np.min(e)))
 
-    plt.figure()
-    plt.plot(e)
-    plt.show()
+    # plt.figure()
+    # plt.plot(e)
+    # plt.show()
+    return b, e
 
 if __name__=="__main__":
 
@@ -239,4 +240,4 @@ if __name__=="__main__":
 
     Q = parse_Q()
     # print(np.matmul(np.matmul(b.T, Q), b))
-    use_sample(Q, num_sweeps=10000, multiThread=False)
+    annealing(Q, num_sweeps=10000, multiThread=False)

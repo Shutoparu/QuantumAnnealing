@@ -35,7 +35,7 @@ class equation:
 
 class QUBO:
     @staticmethod
-    def paras_to_qubo(rsrp, sinr, rb, bs_num, ue_num):
+    def paras_to_qubo(rsrp, sinr, rb, ue_num, bs_num):
         assert (ue_num, bs_num) == rsrp.shape, "rsrp must have same shape with ({}, {})," \
                                                " but given {}".format(ue_num, bs_num, rsrp.shape)
         assert (ue_num, bs_num) == sinr.shape, "sinr must have same shape with ({}, {})," \
@@ -193,30 +193,31 @@ class QUBO:
         pass
 
 
-Q = QUBO()
-# size = [2, 5]
-#
-# rsrp = np.random.random(size)
-# prb = np.random.random(size)
-# x = Q.create_array(size, "x")
-# avg = Q.div(Q.sum(Q.multiply(x, prb)), 5)
-# # h = Q.div(Q.sum(Q.square(Q.sum(Q.multiply(x, rsrp), axis=0))), 20)
-# h = Q.div(Q.sum(Q.square(Q.sub(Q.sum(Q.multiply(x, rsrp), axis=0), avg))), 20)
-# print(avg[0].key)
+if __name__=="__main__":
+    Q = QUBO()
+    size = [2, 5]
 
-bs_num = 5
-ue_num = 20
-rsrp = np.random.random([ue_num, bs_num])
-sinr = np.random.random([ue_num, bs_num])
-rb = np.random.random([ue_num, bs_num])
-matrix = Q.paras_to_qubo(rsrp, sinr, rb, bs_num, ue_num)
+    # rsrp = np.random.random(size)
+    # prb = np.random.random(size)
+    # x = Q.create_array(size, "x")
+    # avg = Q.div(Q.sum(Q.multiply(x, prb)), 5)
+    # # h = Q.div(Q.sum(Q.square(Q.sum(Q.multiply(x, rsrp), axis=0))), 20)
+    # h = Q.div(Q.sum(Q.square(Q.sub(Q.sum(Q.multiply(x, rsrp), axis=0), avg))), 20)
+    # print(avg[0].key)
 
-X = Array.create('X', shape=(ue_num, bs_num), vartype='BINARY')
-avg = np.sum(rb * X)/bs_num
-H_0 = SubH(np.sum((np.sum(rb * X, axis=0) - avg) ** 2) / bs_num, "H_0")
-H = H_0
-model = H.compile()
-qubo, offset = model.to_qubo()
-print(qubo['X[0][0]', 'X[0][0]'])
-print(qubo['X[10][0]', 'X[10][0]'])
-print(1)
+    bs_num = 5
+    ue_num = 20
+    rsrp = np.random.random([ue_num, bs_num])
+    sinr = np.random.random([ue_num, bs_num])
+    rb = np.random.random([ue_num, bs_num])
+    matrix = Q.paras_to_qubo(rsrp, sinr, rb, bs_num, ue_num)
+
+    X = Array.create('X', shape=(ue_num, bs_num), vartype='BINARY')
+    avg = np.sum(rb * X)/bs_num
+    H_0 = SubH(np.sum((np.sum(rb * X, axis=0) - avg) ** 2) / bs_num, "H_0")
+    H = H_0
+    model = H.compile()
+    qubo, offset = model.to_qubo()
+    print(qubo['X[0][0]', 'X[0][0]'])
+    print(qubo['X[10][0]', 'X[10][0]'])
+    print("Pause")

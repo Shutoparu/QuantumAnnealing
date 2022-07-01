@@ -57,7 +57,7 @@ def SINR_to_PRB(SINR_dB, SNR_dB):
 
     return R_PRB/num_PRB, throughput
 
-def read_pkl(file="7BS_150UE_pathloss.pkl"):
+def read_pkl(file="/Users/musktang/pycharm_project/QuantumAnnealing/data/7BS_150UE_pathloss.pkl"):
     with open(file, "rb") as f:
         data = pickle.load(f)
 
