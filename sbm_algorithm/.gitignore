@@ -1,0 +1,5 @@
+.vscode
+bin/
+lib/
+qubo.txt
+__pycache__/
