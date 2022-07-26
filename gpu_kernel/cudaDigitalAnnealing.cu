@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <curand_kernel.h>
+#include <time.h>
 
 texture<int, 1, cudaReadModeElementType> b_text;
 texture<float, 1, cudaReadModeElementType> Q_text;
@@ -284,7 +285,7 @@ void getAnnealingBeta (float betaStart, float betaStop, float* beta, int sweeps)
 /////////////////////////////////////////////////////////////////////////
 
 extern "C" {
-    float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps);
+    float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart, float betaStop, int blocks, int threads);
 }
 
 /**
@@ -295,18 +296,12 @@ extern "C" {
  * @param dim dimention of binary array and qubo matrix
  * @param sweeps number of iterations to be done
  */
-float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps) {
+float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart, float betaStop, int blocks, int threads) {
 
     // int device;
     // cudaGetDevice (&device);
     // cudaDeviceProp prop;
     // cudaGetDeviceProperties (&prop, device);
-
-    int blocks = 32 * 16;
-    int threads = dim / blocks + 1;
-
-    float betaStart = 1;
-    float betaStop = 500;
 
     float* beta;
     beta = (float*)malloc (sweeps * sizeof (float));
@@ -341,14 +336,13 @@ float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps) {
     float* tempArr_Host;
     cudaMallocHost (&tempArr_Host, dim * sizeof (float));
 
+    srand (time (NULL));
+
     for (int n = 0; n < sweeps; n++) {
 
         slipBinary << <blocks, threads >> > (dim, offset, beta[n], stat, (float)rand ());
         cudaDeviceSynchronize ();
         cudaMemcpy (stat_host, stat, 2 * dim * sizeof (float), cudaMemcpyDeviceToHost);
-
-
-
         // printf ("n=%d\n===\n", n);
         // for (int i = 0; i < dim; i++) {
         //     printf ("%d -> %.0f,\t", i, stat_host[dim + i]);
@@ -366,7 +360,7 @@ float digitalAnnealingPy (int* b, float* Q, int dim, int sweeps) {
             cudaMemcpy (b_copy, b, dim * sizeof (int), cudaMemcpyHostToDevice);
             // printf ("n = %d -> accepted index = %d, delta_E = %.9f\n", n, index, stat_host[dim + index]);
         }
-        if (n % 100 == 0) {
+        if (n % 1000 == 0) {
             float energy = 0;
             dot1 << <blocks, threads >> > (tempArr, dim);
             cudaDeviceSynchronize ();
