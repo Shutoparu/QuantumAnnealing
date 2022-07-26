@@ -4,11 +4,7 @@
 
 Overall time complexity: O(sweep*dim)
 
-## C code
-
-This is the c prototype of the algorithm.
-
-## Cuda C code
+## Hardware and docker image information
 
 Used OS: Ubuntu 20.04.3 LTS
 
@@ -16,32 +12,33 @@ kernel: Linux 5.13.0-51-generic
 
 Used image version: nvidia/cuda:10.0-devel-ubuntu18.04
 
-command to create container: 
+command used to create container: 
+```
+docker run -it --gpus all nvidia/cuda:10.0-devel-ubuntu18.04 bash
+```
+## To use the algorithm:
 
-> docker run -it --gpus all nvidia/cuda:10.0-devel-ubuntu18.04 bash
+First of all, generate a cudaDA.so file for the cudaDigitalAnnealing.cu file.
 
-To compile and run the Cuda C code, run in terminal:
+In command line, run the following prompt:
+```
+nvcc --compiler-options -fPIC -shared -arch sm_70 --maxrregcount=255 -o ./cudaDA.so cudaDigitalAnnealing.cu
+```
+Locate the cudaDA.so file and main.py file, put them in the same folder.
 
-> nvcc cudaDigitalAnnealing.cu -o ./bin/cudaDA.o
-> 
-> ./bin/cudaDA.o
-
-### result: 
-the algorithm spent 59 seconds to finish 100,000 iterations,
-compared to python Simulated Annealing algorithm which spent 200 seconds
-
+Second, import the algorithm to your code:
+```
+from main import DA
+```
+Then you can use the algorithm with following code:
+```
+algorithm = DA()
+algorithm.run()
+```
+### result:
+For a ising problem with 727 binary bits, the algorithm spent 10.5 seconds to finish 100,000 iterations to find a local minima of the problem.
 ![result](./images/result.png)
 
-## python code
-
-This is the code that allow users to put in their own data.
-
-Used Python version: 3.6.9 64bit
-
-The code throws a qubo matrix and a state array into the cuda code and calculate the energy
-
-### result:
-
-Without calculating energy at each iteration, the code takes 35 seconds to finish 100,000 iterations
-
-![pyResult](./images/pyResult.png)
+### compare to SA: 
+the prototype of the algorithm spent 59 seconds to finish 100,000 iterations,
+compared to python Simulated Annealing algorithm which spent 200 seconds

@@ -96,14 +96,18 @@ class QUBO:
 
         # constrain 1
         c12d = np.zeros([h_dim + 1, h_dim + 1])
+        c1_check = np.zeros([h_dim + 1])
         for j in range(bs_num):
             c11d = np.zeros([h_dim + 1])
             for i in range(ue_num):
                 c11d[i * bs_num + j] = 1
+                c1_check[i * bs_num + j] += 1
             for k in range(power128):
                 c11d[r_shift + j * power128 + k] = 2 ** k
             c11d[-1] = -128
+            c1_check[-1] = -128
             c12d = vecmul(c11d, c11d, c12d)
+        c1_check *= -1
 
         # constrain 2
         c22d = np.zeros([h_dim + 1, h_dim + 1])
@@ -116,6 +120,7 @@ class QUBO:
 
         # constrain 3
         c32d = np.zeros([h_dim + 1, h_dim + 1])
+        c3_check = np.zeros([h_dim + 1])
         for i in range(ue_num):
             for j in range(bs_num):
                 c31d = np.zeros([h_dim + 1])
@@ -123,8 +128,10 @@ class QUBO:
                 # demand rb
                 if rb[i, j] > 199:
                     c31d[-1] = 199
+                    c3_check[-1] += 199
                 else:
                     c31d[-1] = rb[i, j]
+                    c3_check[-1] += rb[i, j]
 
                 # rb distrubution
                 rb_bar = int(rb[i, j] // 10)
@@ -132,13 +139,18 @@ class QUBO:
                     rb_bar = 19
                 for k in range(rb_bar):
                     c31d[robin10_shift + j * robinmax + k] -= 10
+                    c3_check[robin10_shift + j * robinmax + k] -= 10
                 for k in range(digit_num):
                     if k == digit_num - 1:
                         c31d[robin2_shift + i *
                              (bs_num * digit_num) + j * digit_num + k] -= 2
+                        c3_check[robin2_shift + i *
+                                 (bs_num * digit_num) + j * digit_num + k] -= 2
                     else:
                         c31d[robin2_shift + i *
                              (bs_num * digit_num) + j * digit_num + k] -= 2 ** k
+                        c3_check[robin2_shift + i *
+                                 (bs_num * digit_num) + j * digit_num + k] -= 2 ** k
 
                 # slack variable
                 for k in range(power128):
@@ -148,11 +160,13 @@ class QUBO:
 
         # constrain 4
         c42d = np.zeros([h_dim + 1, h_dim + 1])
+        c4_check = np.zeros(h_dim+1)
         for j in range(bs_num):
             c41d = np.zeros([h_dim + 1])
 
             # constrain : distru < 273
             c41d[-1] = -273
+            c4_check[-1] += -273
 
             # rb distrubution
             for i in range(ue_num):
@@ -162,62 +176,71 @@ class QUBO:
                 for k in range(rb_bar):
                     c41d[y_shift + i * (bs_num * robinmax) +
                          j * robinmax + k] += 10
+                    c4_check[y_shift + i *
+                             (bs_num * robinmax) + j * robinmax + k] += 10
                 for k in range(digit_num):
                     if k == digit_num - 1:
                         c41d[ybar_shift + i *
                              (bs_num * digit_num) + j * digit_num + k] += 2
+                        c4_check[ybar_shift + i *
+                                 (bs_num * digit_num) + j * digit_num + k] += 2
                     else:
                         c41d[ybar_shift + i *
                              (bs_num * digit_num) + j * digit_num + k] += 2 ** k
+                        c4_check[ybar_shift + i *
+                                 (bs_num * digit_num) + j * digit_num + k] += 2 ** k
 
             # slack variable
             for k in range(power256):
                 c41d[u_shift + j * power256 + k] += 2 ** k
 
             c42d = vecmul(c41d, c41d, c42d)
+        c4_check *= -1
 
+        c452d = np.zeros([h_dim + 1, h_dim + 1])
         p = 1
         for i in range(ue_num):
             for j in range(bs_num):
                 for k in range(robinmax):
-                    c42d[robin10_shift + j * robinmax +
-                         k, i * bs_num + j] += p * 1
-                    c42d[i * bs_num + j, robin10_shift +
-                         j * robinmax + k] += p * 1
-                    c42d[robin10_shift + j * robinmax + k, y_shift + i * (bs_num * robinmax) + j * (
+                    c452d[robin10_shift + j * robinmax +
+                          k, i * bs_num + j] += p * 1
+                    c452d[i * bs_num + j, robin10_shift +
+                          j * robinmax + k] += p * 1
+                    c452d[robin10_shift + j * robinmax + k, y_shift + i * (bs_num * robinmax) + j * (
                         robinmax) + k] += p * -2
-                    c42d[y_shift + i * (bs_num * robinmax) + j * (
+                    c452d[y_shift + i * (bs_num * robinmax) + j * (
                         robinmax) + k, robin10_shift + j * robinmax + k] += p * -2
-                    c42d[i * bs_num + j, y_shift + i * (bs_num * robinmax) + j * (
+                    c452d[i * bs_num + j, y_shift + i * (bs_num * robinmax) + j * (
                         robinmax) + k] += p * -2
-                    c42d[y_shift + i * (bs_num * robinmax) + j * (
+                    c452d[y_shift + i * (bs_num * robinmax) + j * (
                         robinmax) + k, i * bs_num + j] += p * -2
-                    c42d[y_shift + i * (bs_num * robinmax) + j * (
+                    c452d[y_shift + i * (bs_num * robinmax) + j * (
                         robinmax) + k, -1] += p * 3
-                    c42d[-1, y_shift + i * (bs_num * robinmax) + j * (
+                    c452d[-1, y_shift + i * (bs_num * robinmax) + j * (
                         robinmax) + k] += p * 3
 
                 for k in range(digit_num):
-                    c42d[robin2_shift + i * (bs_num * digit_num) +
-                         j * digit_num + k, i * bs_num + j] += p * 1
-                    c42d[i * bs_num + j, robin2_shift + + i *
-                         (bs_num * digit_num) + j * digit_num + k] += p * 1
-                    c42d[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k, ybar_shift + i * (
+                    c452d[robin2_shift + i * (bs_num * digit_num) +
+                          j * digit_num + k, i * bs_num + j] += p * 1
+                    c452d[i * bs_num + j, robin2_shift + + i *
+                          (bs_num * digit_num) + j * digit_num + k] += p * 1
+                    c452d[robin2_shift + i * (bs_num * digit_num) + j * digit_num + k, ybar_shift + i * (
                         bs_num * digit_num) + j * (
                         digit_num) + k] += p * -2
-                    c42d[ybar_shift + i * (bs_num * digit_num) + j * (
+                    c452d[ybar_shift + i * (bs_num * digit_num) + j * (
                         digit_num) + k, robin2_shift + i * (bs_num * digit_num) + j * digit_num + k] += p * -2
-                    c42d[i * bs_num + j, ybar_shift + i * (bs_num * digit_num) + j * (
+                    c452d[i * bs_num + j, ybar_shift + i * (bs_num * digit_num) + j * (
                         digit_num) + k] += p * -2
-                    c42d[ybar_shift + i * (bs_num * digit_num) + j * (
+                    c452d[ybar_shift + i * (bs_num * digit_num) + j * (
                         digit_num) + k, i * bs_num + j] += p * -2
-                    c42d[ybar_shift + i * (bs_num * digit_num) + j * (
+                    c452d[ybar_shift + i * (bs_num * digit_num) + j * (
                         digit_num) + k, -1] += p * 3
-                    c42d[-1, ybar_shift + i * (bs_num * digit_num) + j * (
+                    c452d[-1, ybar_shift + i * (bs_num * digit_num) + j * (
                         digit_num) + k] += p * 3
 
         # constrain 5
         c52d = np.zeros([h_dim + 1, h_dim + 1])
+        c5_check = np.zeros([h_dim + 1])
         for i in range(ue_num):
             for j in range(bs_num):
                 serving_idx = int(serving_list[i])
@@ -226,14 +249,21 @@ class QUBO:
                 c51d = np.zeros([h_dim + 1])
 
                 c51d[i * bs_num + j] = rsrp[i, j] - rsrp[i, serving_idx] - 10
+                c5_check[i * bs_num + j] += rsrp[i, j] - \
+                    rsrp[i, serving_idx] - 10
                 for k in range(cio_range_dim):
                     if k == cio_range_dim - 1:
                         c51d[e_shift + serving_idx *
                              (bs_num * cio_range_dim) + j * cio_range_dim + k] -= 9 / 2
+                        c5_check[e_shift + serving_idx *
+                                 (bs_num * cio_range_dim) + j * cio_range_dim + k] -= 9 / 2
                     else:
                         c51d[e_shift + serving_idx *
                              (bs_num * cio_range_dim) + j * cio_range_dim + k] -= 2 ** (k - 1)
+                        c5_check[e_shift + serving_idx *
+                                 (bs_num * cio_range_dim) + j * cio_range_dim + k] -= 2 ** (k - 1)
                 c51d[-1] += 20
+                c5_check[-1] += 20
 
                 for k in range(power256):
                     if k == power256 - 1:
@@ -256,9 +286,10 @@ class QUBO:
                 c62d[robin10_shift + j * robinmax + k,
                      robin10_shift + j * robinmax + k + 1] -= 1 / 2
 
-        # result = h2d + panelty * (c12d + c22d + c32d + c42d + c52d + c62d)
+        # result = h2d + panelty * (c12d + c22d + c32d + c42d + c452d + c52d + c62d)
         result = h2d + panelty * \
-            (c12d/128 + c22d + c32d/45 + c42d/273 + c52d/110 + c62d)
+            (c12d/128**2 + 2*c22d + c32d/45**2 +
+             c42d / 273**2 + 2*c452d/273**2 + c52d/110**2 + 2*c62d)
 
         if spin:
             jh = np.zeros([h_dim + 1, h_dim + 1])
@@ -277,7 +308,7 @@ class QUBO:
                 jh[-1, -1] += -(result[i, -1] + result[-1, i]) / 2
             result = jh
 
-        return result, h2d, c12d, c22d, c32d, c42d, c52d, c62d
+        return result, h2d, c1_check, c3_check, c4_check, c5_check, c12d, c22d, c32d, c42d, c452d, c52d, c62d
 
     @staticmethod
     def params2qubo(rsrp, sinr, rb, ue_num, bs_num):
@@ -419,12 +450,18 @@ class QUBO:
         return rsrp_arr, sinr_arr, prb_arr, int(ue_num), int(bs_num)
 
     @staticmethod
-    def check_constrain(binary, constrains):
+    def check_constrain(binary, constrains, no_slack=False):
         result = []
-        for c in constrains:
-            r = np.matmul(np.matmul(binary.T, c * binary), binary)
-            result.append(r[0][0])
-
+        if no_slack:
+            for c in constrains:
+                r = c @ binary
+                # if r >= 0:
+                result.append(r[0])
+        else:
+            for c in constrains:
+                r = np.matmul(np.matmul(binary.T, c * binary), binary)
+                # if r != 0:
+                result.append(r[0][0])
         return result
 
     @staticmethod
@@ -764,46 +801,26 @@ if __name__ == '__main__':
 
     init_bin = QUBO.init_bin(capacity, len(Q[0]), bs_num)
     init_bin[-1] = 1
-    throughput = np.matmul(np.matmul(init_bin.T, Q[1]), init_bin)
-    print("initial mlb throughput : {}".format(throughput))
 
-    da1 = DA(Q[0], init_bin, maxStep=100000)
+    da1 = DA(Q[0], init_bin, maxStep=100000, betaStart=0.01, betaStop=100)
     da1.run()
     bin1 = np.expand_dims(da1.binary, axis=1)
-
-    # quit()
-
-    throughput = np.matmul(np.matmul(bin1.T, Q[1]), bin1)[0][0]
-    constrain_pass = QUBO.check_constrain(bin1, Q[2:])
-    print("check constrain pass : {}".format(constrain_pass))
-    print("final mlb throughput : {}".format(throughput))
-
-    # da2 = DA(Q[0], init_bin, maxStep=20000)
-    # da2.run()
-    # bin2 = np.expand_dims(da2.binary, axis=1)
-
-    # throughput = np.matmul(np.matmul(bin2.T, Q[1]), bin2)
-    # constrain_pass = QUBO.check_constrain(bin2, Q[2:])
-    # print("check constrain pass : {}".format(constrain_pass))
-    # print("final mlb throughput : {}".format(throughput))
 
     cio_setting = QUBO.init_cio(bs_num)
     ans_bin = QUBO.gen_answer(serving_list, ue_num,
                               bs_num, prb, rsrp, cio_setting)
 
-    test = np.expand_dims(ans_bin, axis=1)
-    const = QUBO.check_constrain(test, Q[2:])
-    throughput_ideal = np.matmul(np.matmul(test.T, Q[1]), test)[0][0]
-    print("check constrain pass ideal: {}".format(const))
-    print("final mlb throughput ideal: {}".format(throughput_ideal))
-
-    # print(sum(abs(bin.T[0]-init_bin)))
-    # print(sum(abs(init_bin-test.T[0])))
-    # print(sum(abs(test.T[0]-bin.T[0])))
-    # print(test.T[0])
-    # print(Q[0])
-    # print(bin1.T[0])
-    # print(bin2.T[0])
-    # print((bin2+bin1).T[0])
-    print(sum(abs(bin1.T[0]-test.T[0])))
+    # throughput = np.matmul(np.matmul(ans_bin.T, Q[1]), ans_bin)
+    # constrain_pass = QUBO.check_constrain(ans_bin, Q[6:])
+    # no_slack_constrain_pass = QUBO.check_constrain(ans_bin, Q[2:6], no_slack=True)
+    # print("check constrain pass : {}".format(constrain_pass))
+    # print("check no slack constrain pass : {}".format(no_slack_constrain_pass))
+    # print("mlb throughput : {}".format(throughput))
+    throughput = np.matmul(np.matmul(bin1.T, Q[1]), bin1)[0][0]
+    constrain_pass = QUBO.check_constrain(bin1, Q[6:])
+    no_slack_constrain_pass = QUBO.check_constrain(bin1, Q[2:6], no_slack=True)
+    print("check constrain pass : {}".format(constrain_pass))
+    print("check no slack constrain pass : {}".format(no_slack_constrain_pass))
+    print("mlb throughput : {}".format(throughput))
+    print(np.matmul(np.matmul(bin1.T, Q[0]), bin1)[0][0])
     print(da1.time)
