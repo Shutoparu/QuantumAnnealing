@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import pickle
 from main import DA
@@ -787,7 +788,7 @@ if __name__ == '__main__':
     #### parameters to QUBO matrix ####
     serving_list = QUBO.init_serving_list(capacity, ue_num)
     Q = QUBO.params2qubo_v2(rsrp, capacity, prb,
-                            serving_list, ue_num, bs_num, panelty=100)
+                            serving_list, ue_num, bs_num, panelty=10)
 
     # print("Q is symmetry : {}".format(QUBO.check_Q(Q[0])))
 
@@ -802,8 +803,12 @@ if __name__ == '__main__':
     init_bin = QUBO.init_bin(capacity, len(Q[0]), bs_num)
     init_bin[-1] = 1
 
-    da1 = DA(Q[0], init_bin, maxStep=100000, betaStart=0.01, betaStop=100)
+    da1 = DA(Q[0], init_bin, maxStep=100000,
+             betaStart=0.01, betaStop=100, kernel_dim=(32*2,))
     da1.run()
+    # print(da1.binary)
+    print(f'time spent: {da1.time}')
+    # exit()
     bin1 = np.expand_dims(da1.binary, axis=1)
 
     cio_setting = QUBO.init_cio(bs_num)
@@ -822,5 +827,5 @@ if __name__ == '__main__':
     print("check constrain pass : {}".format(constrain_pass))
     print("check no slack constrain pass : {}".format(no_slack_constrain_pass))
     print("mlb throughput : {}".format(throughput))
-    print(np.matmul(np.matmul(bin1.T, Q[0]), bin1)[0][0])
-    print(da1.time)
+    # print(np.matmul(np.matmul(bin1.T, Q[0]), bin1)[0][0])
+    # print(f'time spent: {end-start}')
