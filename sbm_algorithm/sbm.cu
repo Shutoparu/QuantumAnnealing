@@ -215,7 +215,7 @@ void iterate(float* spin, float* qubo, int dim, int window, int maxStep) {
 
     float* pressure;
     cudaMalloc(&pressure, dim * sizeof(float));
-    setPressure << <50, threads >> > (pressure, dim);
+    setPressure << <blocks, threads >> > (pressure, dim);
     cudaBindTexture(0, pressure_tex, pressure, dim * sizeof(float));
 
     if (window == 0) {

@@ -48,3 +48,9 @@ This is the code that allow users to test different dimentions. to input own dat
 Used Python version: 3.6.9 64bit
 
 The code throws a qubo matrix and a state array into the cuda code and calculate the energy
+
+#### reference:
+
+[code](https://github.com/bqth29/simulated-bifurcation-algorithm.git)
+
+referenced article is in "reference" folder
