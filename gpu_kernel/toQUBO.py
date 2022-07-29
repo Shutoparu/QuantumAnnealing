@@ -2,6 +2,7 @@ import time
 import numpy as np
 import pickle
 from main import DA
+from glob import glob
 
 
 class QUBO:
@@ -789,7 +790,6 @@ if __name__ == '__main__':
     serving_list = QUBO.init_serving_list(capacity, ue_num)
     Q = QUBO.params2qubo_v2(rsrp, capacity, prb,
                             serving_list, ue_num, bs_num, panelty=10)
-
     # print("Q is symmetry : {}".format(QUBO.check_Q(Q[0])))
 
     # #### write qubo matrix as txt ####
@@ -798,34 +798,29 @@ if __name__ == '__main__':
     # np.savetxt(file,Q[0])
     # # QUBO.write_file(file, Q[0])
     # # QUBO.read_file(file)
-    # quit()
 
+    #### gen Q matrix ####
     init_bin = QUBO.init_bin(capacity, len(Q[0]), bs_num)
     init_bin[-1] = 1
 
-    da1 = DA(Q[0], init_bin, maxStep=100000,
+    #### annealing ####
+    da1 = DA(Q, init_bin, maxStep=100000,
              betaStart=0.01, betaStop=100, kernel_dim=(32*2,))
     da1.run()
     # print(da1.binary)
     print(f'time spent: {da1.time}')
-    # exit()
+    print(file)
+
     bin1 = np.expand_dims(da1.binary, axis=1)
 
     cio_setting = QUBO.init_cio(bs_num)
     ans_bin = QUBO.gen_answer(serving_list, ue_num,
                               bs_num, prb, rsrp, cio_setting)
 
-    # throughput = np.matmul(np.matmul(ans_bin.T, Q[1]), ans_bin)
-    # constrain_pass = QUBO.check_constrain(ans_bin, Q[6:])
-    # no_slack_constrain_pass = QUBO.check_constrain(ans_bin, Q[2:6], no_slack=True)
-    # print("check constrain pass : {}".format(constrain_pass))
-    # print("check no slack constrain pass : {}".format(no_slack_constrain_pass))
-    # print("mlb throughput : {}".format(throughput))
+    #### check answer ####
     throughput = np.matmul(np.matmul(bin1.T, Q[1]), bin1)[0][0]
     constrain_pass = QUBO.check_constrain(bin1, Q[6:])
     no_slack_constrain_pass = QUBO.check_constrain(bin1, Q[2:6], no_slack=True)
     print("check constrain pass : {}".format(constrain_pass))
     print("check no slack constrain pass : {}".format(no_slack_constrain_pass))
     print("mlb throughput : {}".format(throughput))
-    # print(np.matmul(np.matmul(bin1.T, Q[0]), bin1)[0][0])
-    # print(f'time spent: {end-start}')
