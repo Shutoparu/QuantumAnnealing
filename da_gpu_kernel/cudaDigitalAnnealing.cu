@@ -47,10 +47,9 @@ int randChoose (float* arr, int size) {
     int* indicies;
     indicies = (int*)malloc (size * sizeof (int));
 
-    for (int i = 0; i < size; i++) {
-        if (abs (arr[i]) < 0.0005) {
-            indicies[nonZeroNum] = i;
-            nonZeroNum++;
+    for (int i = 0; i < size-1; i++) {
+        if (arr[i] == 1) {
+            indicies[nonZeroNum++] = i;
         }
     }
     if (nonZeroNum == 0) {
@@ -69,14 +68,14 @@ int randChoose (float* arr, int size) {
  * @param size the size of the array
  * @return return the minimum value of the array
  */
-float maxNum (float* arr, int size) {
-    float max = arr[0];
+float minNum (float* arr, int size) {
+    float min = arr[0];
     for (int i = 1; i < size; i++) {
-        if (arr[i] > max) {
-            max = arr[i];
+        if (arr[i] < min) {
+            min = arr[i];
         }
     }
-    return max;
+    return min;
 }
 
 __global__ void dot1 (float* out, int dim) {
@@ -135,7 +134,12 @@ __global__ void checkBinary (int dim, float offset, float beta, float* stat, flo
         }
 
         // check energy or check % (check pass)
-        stat[i] = exp (-delta_E * beta) > float (rand / float (INT_MAX)) ? 1 : 0;
+        float p = exp (-delta_E * beta);
+        if (p > float (rand / float (INT_MAX))) {
+            stat[i] = 1;
+        } else {
+            stat[i] = 0;
+        }
         stat[dim + i] = delta_E;
     }
 }
@@ -187,10 +191,7 @@ void digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart,
     float offsetIncreasingRate = 0.1;
 
     float* stat;
-    cudaMalloc (&stat, 2 * dim * sizeof (float));
-
-    float* stat_host;
-    cudaMallocHost (&stat_host, 2 * dim * sizeof (float));
+    cudaMallocManaged (&stat, 2 * dim * sizeof (float));
 
     int* b_copy;
     cudaMalloc (&b_copy, dim * sizeof (int));
@@ -210,14 +211,13 @@ void digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart,
     // cudaMallocHost (&tempArr_Host, dim * sizeof (float));
 
     for (int n = 0; n < sweeps; n++) {
-        // cudaEventRecord (start1);
-        checkBinary << <blocks, threads >> > (dim, offset, beta[n], stat, rand ());
-        // cudaEventRecord (end1);
-        cudaMemcpy (stat_host, stat, dim * sizeof (float), cudaMemcpyDeviceToHost);
 
-        int index = randChoose (&stat_host[dim], dim);
+        checkBinary << <blocks, threads >> > (dim, offset, beta[n], stat, rand ());
+        // cudaDeviceSynchronize ();
+
+        int index = randChoose (stat, dim);
         if (index == -1) {
-            offset += offsetIncreasingRate * maxNum (stat_host, dim);
+            offset += offsetIncreasingRate * minNum (&stat[dim], dim - 1);
         } else {
             b[index] = b[index] * -1 + 1;
             cudaMemcpy (b_copy, b, dim * sizeof (int), cudaMemcpyHostToDevice);
@@ -242,7 +242,6 @@ void digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart,
 
     free (beta);
     cudaFree (stat);
-    cudaFreeHost (stat_host);
     cudaFree (b_copy);
     cudaFree (Q_copy);
     // cudaFree (tempArr);
