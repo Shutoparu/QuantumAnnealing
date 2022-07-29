@@ -48,7 +48,7 @@ int randChoose (float* arr, int size) {
     indicies = (int*)malloc (size * sizeof (int));
 
     for (int i = 0; i < size; i++) {
-        if (arr[i] != 0) {
+        if (abs (arr[i]) < 0.0005) {
             indicies[nonZeroNum] = i;
             nonZeroNum++;
         }
@@ -69,7 +69,7 @@ int randChoose (float* arr, int size) {
  * @param size the size of the array
  * @return return the minimum value of the array
  */
-float max (float* arr, int size) {
+float maxNum (float* arr, int size) {
     float max = arr[0];
     for (int i = 1; i < size; i++) {
         if (arr[i] > max) {
@@ -107,14 +107,12 @@ __global__ void dot2 (float* out, int dim) {
  * @param stat the array to be returned, include [0] acceptance and [1] energy change
  * @param rand a random number
  */
-__global__ void slipBinary (int dim, float offset, float beta, float* stat, float rand) {
+__global__ void checkBinary (int dim, float offset, float beta, float* stat, float rand) {
 
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     if (i < dim - 1) {
         int flipped = 0;
         float delta_E = 0.0f;
-        // curandState state;
-        // curand_init (rand, i, 0, &state);
 
         // check flip
         if (tex1Dfetch (b_text, i) == 0) {
@@ -122,7 +120,6 @@ __global__ void slipBinary (int dim, float offset, float beta, float* stat, floa
         }
 
         int idim = i * dim;
-
         for (int n = 0; n < dim; n++) {
             if (n == i && flipped == 1) {
                 delta_E += tex1Dfetch (Q_text, idim + n); // time consuming
@@ -133,24 +130,13 @@ __global__ void slipBinary (int dim, float offset, float beta, float* stat, floa
 
         if (flipped != 0) {
             delta_E = 2 * delta_E - tex1Dfetch (Q_text, idim + i) - offset;
-            // delta_E = 2 * delta_E - Q[idim + i] - offset;
         } else {
             delta_E = -2 * delta_E + tex1Dfetch (Q_text, idim + i) - offset;
-            // delta_E = -2 * delta_E + Q[idim + i] - offset;
         }
-
 
         // check energy or check % (check pass)
-        float p = exp (-delta_E * beta);
-        // if (p > curand_uniform (&state)) {
-        if (exp (-delta_E * beta) > float(rand/float(INT_MAX))) {
-            stat[i] = 1;
-        } else {
-            stat[i] = 0;
-        }
+        stat[i] = exp (-delta_E * beta) > float (rand / float (INT_MAX)) ? 1 : 0;
         stat[dim + i] = delta_E;
-        
-        
     }
 }
 
@@ -169,13 +155,6 @@ void getAnnealingBeta (float betaStart, float betaStop, float* beta, int sweeps)
     float logBetaRange = (logBetaStop - logBetaStart) / (float)sweeps;
     for (int i = 0; i < sweeps; i++) {
         beta[i] = exp (logBetaStart + logBetaRange * i);
-    }
-}
-
-__global__ void flip (int* b, int index) {
-    int i = threadIdx.x + blockIdx.x * blockDim.x;
-    if (i == index) {
-        b[index] = b[index] * -1 + 1;
     }
 }
 
@@ -198,11 +177,7 @@ extern "C" {
 void digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart, float betaStop, int blocks, int threads) {
 
     srand (time (NULL));
-
-    // int device;
-    // cudaGetDevice (&device);
-    // cudaDeviceProp prop;
-    // cudaGetDeviceProperties (&prop, device);
+    // srand (1);
 
     float* beta;
     beta = (float*)malloc (sweeps * sizeof (float));
@@ -229,50 +204,38 @@ void digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart,
     cudaBindTexture (0, Q_text, Q_copy);
 
     // for calculating energy
-    float* tempArr;
-    cudaMalloc (&tempArr, dim * sizeof (float));
-    float* tempArr_Host;
-    cudaMallocHost (&tempArr_Host, dim * sizeof (float));
-
-    // cudaEvent_t start1, end1;
-    // cudaEventCreate (&start1);
-    // cudaEventCreate (&end1);
-    // float milliseconds = 0;
+    // float* tempArr;
+    // cudaMalloc (&tempArr, dim * sizeof (float));
+    // float* tempArr_Host;
+    // cudaMallocHost (&tempArr_Host, dim * sizeof (float));
 
     for (int n = 0; n < sweeps; n++) {
         // cudaEventRecord (start1);
-        slipBinary << <blocks, threads >> > (dim, offset, beta[n], stat, (float)rand ());
+        checkBinary << <blocks, threads >> > (dim, offset, beta[n], stat, rand ());
         // cudaEventRecord (end1);
-        cudaMemcpy (stat_host, stat, 2 * dim * sizeof (float), cudaMemcpyDeviceToHost);
-        // printf("%f\n",stat_host[dim]);
+        cudaMemcpy (stat_host, stat, dim * sizeof (float), cudaMemcpyDeviceToHost);
 
-        int index = randChoose (stat_host, dim);
+        int index = randChoose (&stat_host[dim], dim);
         if (index == -1) {
-            offset += offsetIncreasingRate * max (&stat_host[dim], dim);
+            offset += offsetIncreasingRate * maxNum (stat_host, dim);
         } else {
-            // flip << <blocks, threads >> > (b_copy, index);
-            // cudaDeviceSynchronize ();
             b[index] = b[index] * -1 + 1;
             cudaMemcpy (b_copy, b, dim * sizeof (int), cudaMemcpyHostToDevice);
             offset = 0;
         }
-        // cudaEventElapsedTime (&milliseconds, start1, end1);
-        // printf ("%f\n", milliseconds);
-        if (n % 1000 == 0) {
-            float energy = 0;
-            dot1 << <blocks, threads >> > (tempArr, dim);
-            cudaDeviceSynchronize ();
-            dot2 << <blocks, threads >> > (tempArr, dim);
-            cudaDeviceSynchronize ();
-            cudaMemcpy (tempArr_Host, tempArr, dim * sizeof (float), cudaMemcpyDeviceToHost);
-            energy = sum (tempArr_Host, dim);
-            printf ("\tn = %d --> energy = %.5f\n", n, energy);
-        }
+
+        // if (n % 1000 == 0) {
+        //     float energy = 0;
+        //     dot1 << <blocks, threads >> > (tempArr, dim);
+        //     cudaDeviceSynchronize ();
+        //     dot2 << <blocks, threads >> > (tempArr, dim);
+        //     cudaDeviceSynchronize ();
+        //     cudaMemcpy (tempArr_Host, tempArr, dim * sizeof (float), cudaMemcpyDeviceToHost);
+        //     energy = sum (tempArr_Host, dim);
+        //     printf ("\tn = %d --> energy = %.5f\n", n, energy);
+        // }
 
     }
-
-    // cudaEventDestroy (start1);
-    // cudaEventDestroy (end1);
 
     cudaUnbindTexture (b_text);
     cudaUnbindTexture (Q_text);
@@ -282,43 +245,10 @@ void digitalAnnealingPy (int* b, float* Q, int dim, int sweeps, float betaStart,
     cudaFreeHost (stat_host);
     cudaFree (b_copy);
     cudaFree (Q_copy);
-    cudaFree (tempArr);
-    cudaFreeHost (tempArr_Host);
+    // cudaFree (tempArr);
+    // cudaFreeHost (tempArr_Host);
 }
 
 /////////////////////////////////////////////////////////////////////////
 /// Above is the code that Python code calls to execute the algorithm ///
 /////////////////////////////////////////////////////////////////////////
-
-// int main () {
-
-//     int dim = 727;
-
-//     // create a random 40 * 40 array Q
-//     // create an inital state([1]) bit array b
-//     srand (1);
-//     float* Q;
-//     int* b;
-//     cudaMallocHost (&Q, dim * dim * sizeof (float));
-//     cudaMallocHost (&b, dim * sizeof (int));
-//     for (int i = 0; i < dim; i++) {
-//         b[i] = 1;
-//     }
-//     for (int i = 0; i < dim * dim; i++) {
-//         Q[i] = rand () / ((float)(RAND_MAX - 1) / 2 + 1) - 1;
-//     }
-
-//     int sweeps = 100000;
-
-//     float betaStart = 0.01f;
-//     float betaStop = 100.0f;
-
-//     int blocks = 32 * 16;
-//     int threads = dim / blocks + 1;
-
-//     digitalAnnealingPy (b, Q, dim, sweeps, betaStart, betaStop, blocks, threads);
-
-//     cudaFree (Q);
-//     cudaFree (b);
-//     return 0;
-// }
